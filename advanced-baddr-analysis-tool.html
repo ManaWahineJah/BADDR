@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced BADDR Analysis Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3 { color: #2c3e50; }
+        .warning { color: red; font-weight: bold; font-size: 1.2em; background-color: #ffe6e6; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        textarea { width: 100%; height: 200px; margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; }
+        button { background-color: #3498db; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+        button:hover { background-color: #2980b9; }
+        #result { margin-top: 20px; }
+        .highlight { background-color: #ff6b6b; }
+        .score-circle { width: 150px; height: 150px; border-radius: 50%; margin: 20px auto; position: relative; }
+        .score-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 24px; font-weight: bold; }
+        .category-score { margin-bottom: 10px; }
+        .category-score-bar { height: 20px; background-color: #ecf0f1; position: relative; }
+        .category-score-fill { height: 100%; background-color: #2ecc71; }
+        .category-score-text { position: absolute; right: 5px; top: 0; }
+    </style>
+</head>
+<body>
+    <h1>Advanced BADDR Analysis Tool for Data Narratives</h1>
+    
+    <div class="warning">
+        ALL Narratives added to analysis need to be approved by The National Kaitiaki Group
+        <p>The National Kaitiaki Group considers applications for approval to disclose, use, or publish 'protected information', being information that is on or from the NCSP Register and that identifies the woman or women to whom the information relates as being Māori.</p>
+        <p>The National Kaitiaki Group protects Māori women's cervical screening data by ensuring that this data is:</p>
+        <ul>
+            <li>not used or published inappropriately or in a way that reflects negatively on Māori</li>
+            <li>used to benefit Māori women.</li>
+        </ul>
+    </div>
+
+    <p>Enter your data narrative below to analyze for potential BADDR issues and receive suggestions for improvement. Note: This tool uses strict scoring and advanced language analysis.</p>
+    <textarea id="input-text" placeholder="Enter your data narrative here..."></textarea>
+    <button onclick="analyzeText()">Analyze Text</button>
+    <div id="result"></div>
+
+    <script>
+        const phrasesToAvoid = {
+            "Blaming": [
+                "lack of responsibility", "negligence", "failure to", "blame", "poor choices", "non-compliance",
+                "personal failure", "irresponsibility", "self-inflicted", "lack of motivation", "disregard for health",
+                "poor lifestyle choices", "fail to", "due to ignorance"
+            ],
+            "Aggregate": [
+                "lower participation rates", "poorer health outcomes", "compared to other groups",
+                "all Māori women", "every wahine", "Māori as a whole"
+            ],
+            "Decontextualized": [
+                "without considering", "ignoring cultural factors", "regardless of circumstances",
+                "ignorance of health risks", "uninformed decisions"
+            ],
+            "Deficit": [
+                "cultural deficits", "inadequate awareness", "personal shortcomings", "deficit mindset",
+                "lack of", "inability to", "poor understanding", "failed to", "high-risk", "highly deprived",
+                "vulnerable", "at-risk", "lacking basic knowledge", "underachieving", "deficient in",
+                "lagging behind", "socially disadvantaged", "dependent on aid", "unmotivated",
+                "limited potential", "inferior outcomes", "incapable of progress", "poor decision-making"
+            ],
+            "Restricted": [
+                "data not available", "restricted access", "confidential information",
+                "inaction leading to poor outcomes", "unwillingness to change"
+            ],
+            "Other Discriminatory Language": [
+                "primitive", "outdated customs", "inferior practices", "lacking modern understanding",
+                "reluctant to adopt", "stuck in the past", "underdeveloped", "superstitious",
+                "not as advanced", "cultural backwardness", "lazy", "high-risk ethnicities",
+                "genetic predispositions", "burden on the system", "uncivilized", "resistant to modern",
+                "unfit", "culturally poor", "non-Western ignorance"
+            ]
+        };
+
+        function analyzeText() {
+            const text = document.getElementById('input-text').value;
+            const lowerText = text.toLowerCase();
+            let totalScore = 100;
+            const categoryScores = {};
+            const matches = {};
+            let totalMatches = 0;
+
+            for (const [category, phrases] of Object.entries(phrasesToAvoid)) {
+                matches[category] = [];
+                phrases.forEach(phrase => {
+                    if (lowerText.includes(phrase)) {
+                        matches[category].push(phrase);
+                        totalMatches++;
+                    }
+                });
+                
+                // Check for similar phrases or contextual issues
+                const wordsToCheck = lowerText.split(/\s+/);
+                wordsToCheck.forEach((word, index) => {
+                    if (word.length > 3) {  // Ignore short words
+                        phrases.forEach(phrase => {
+                            if (phrase.includes(word) && !matches[category].includes(phrase)) {
+                                const context = wordsToCheck.slice(Math.max(0, index - 2), Math.min(wordsToCheck.length, index + 3)).join(' ');
+                                matches[category].push(context);
+                                totalMatches++;
+                            }
+                        });
+                    }
+                });
+
+                const categoryScore = Math.max(0, 100 - matches[category].length * 25);
+                categoryScores[category] = categoryScore;
+                totalScore = Math.min(totalScore, categoryScore);
+            }
+
+            // Additional checks for problematic sentence structures
+            const sentences = text.split(/[.!?]+/);
+            sentences.forEach(sentence => {
+                if (sentence.toLowerCase().includes("māori") && 
+                    (sentence.toLowerCase().includes("fail") || 
+                     sentence.toLowerCase().includes("due to") ||
+                     sentence.toLowerCase().includes("because of"))) {
+                    matches["Blaming"] = matches["Blaming"] || [];
+                    matches["Blaming"].push(sentence.trim());
+                    totalMatches++;
+                    totalScore = Math.max(0, totalScore - 25);
+                }
+            });
+
+            // Ensure very low scores for any problematic language
+            if (totalMatches > 0) {
+                totalScore = Math.min(totalScore, 50);
+            }
+            if (totalMatches > 2) {
+                totalScore = Math.min(totalScore, 25);
+            }
+            if (totalMatches > 5) {
+                totalScore = 0;
+            }
+
+            displayResults(text, matches, categoryScores, totalScore, totalMatches);
+        }
+
+        function displayResults(text, matches, categoryScores, totalScore, totalMatches) {
+            let highlightedText = text;
+            Object.values(matches).flat().forEach(match => {
+                const regex = new RegExp(match, 'gi');
+                highlightedText = highlightedText.replace(regex, `<span class="highlight">$&</span>`);
+            });
+
+            let resultHtml = `
+                <h2>Analysis Results</h2>
+                <div class="score-circle" style="background-color: ${getScoreColor(totalScore)}">
+                    <div class="score-text">${totalScore}%</div>
+                </div>
+                <p>BADDR Score: ${totalScore}/100</p>
+                <p><strong>Warning: ${getScoreWarning(totalScore, totalMatches)}</strong></p>
+                <h3>Category Scores:</h3>
+            `;
+
+            for (const [category, score] of Object.entries(categoryScores)) {
+                resultHtml += `
+                    <div class="category-score">
+                        <div>${category}:</div>
+                        <div class="category-score-bar">
+                            <div class="category-score-fill" style="width: ${score}%; background-color: ${getScoreColor(score)}"></div>
+                            <div class="category-score-text">${score}%</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            resultHtml += `
+                <h3>Highlighted Text:</h3>
+                <p>${highlightedText}</p>
+                <h3>Problematic Language Detected:</h3>
+            `;
+
+            for (const [category, categoryMatches] of Object.entries(matches)) {
+                if (categoryMatches.length > 0) {
+                    resultHtml += `<h4>${category}:</h4><ul>`;
+                    categoryMatches.forEach(match => {
+                        resultHtml += `<li>"${match}" is problematic and should be removed or rephrased.</li>`;
+                    });
+                    resultHtml += '</ul>';
+                }
+            }
+
+            resultHtml += `
+                <p><strong>Action Required:</strong> Revise your narrative to eliminate all instances of problematic language. Focus on using respectful, inclusive, and culturally sensitive language that emphasizes systemic factors and community strengths. Avoid any generalizations, stereotypes, or discriminatory language.</p>
+            `;
+
+            document.getElementById('result').innerHTML = resultHtml;
+        }
+
+        function getScoreColor(score) {
+            if (score < 25) return '#ff0000';
+            if (score < 50) return '#ff6b6b';
+            if (score < 75) return '#ffa500';
+            return '#4cd137';
+        }
+
+        function getScoreWarning(score, matches) {
+            if (score === 0) return "Critical issues detected. The narrative contains numerous instances of problematic language and requires a complete rewrite.";
+            if (score < 25) return "Severe issues detected. The narrative contains multiple instances of problematic language and requires significant revision.";
+            if (score < 50) return "Substantial issues detected. The narrative contains problematic language and requires careful revision.";
+            if (score < 75) return "Some issues detected. The narrative contains instances of potentially problematic language and should be reviewed.";
+            if (matches > 0) return "Minor issues detected. While the overall score is high, there are still instances of potentially problematic language that should be addressed.";
+            return "No issues detected. The narrative appears to be free of problematic language, but always strive for improvement and sensitivity.";
+        }
+    </script>
+</body>
+</html>
